@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>紫微斗数命盘</title>
+<script src="./iztro.min.js"></script>
+
+<style>
+  body { font-family: "Microsoft Yahei"; margin: 20px; background: #f8f8f8; }
+  
+  #container {
+    width: 1100px;
+    margin: auto;
+    position: relative;
+  }
+
+  #chart {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+    position: relative;
+    z-index: 1;
+  }
+
+  .palace {
+    background: white;
+    border: 1px solid #aaa;
+    padding: 6px;
+    min-height: 180px;
+    position: relative;
+  }
+
+  .palace-title {
+    font-size: 16px;
+    font-weight: bold;
+    margin-bottom: 2px;
+  }
+
+  .major { color: #800080; font-weight: bold; }
+  .minor { color: #0077cc; }
+  .adj   { color: #777; font-size: 12px; }
+
+  .meta {
+    margin-top: 3px;
+    font-size: 12px;
+    color: #333;
+  }
+
+  #lines {
+    position: absolute;
+    top: 0;
+    left: 0;
+    pointer-events: none;
+    width: 100%;
+    height: 100%;
+    z-index: 0;
+  }
+
+  #center-info {
+    grid-column: 2 / 4;
+    grid-row: 2 / 4;
+    background: #fffff7;
+    border: 2px solid #bbb;
+    padding: 10px;
+    text-align: left;
+    line-height: 1.7;
+    font-size: 15px;
+  }
+</style>
+</head>
+
+<body>
+<h2>紫微斗数命盘</h2>
+
+<div id="container">
+  <svg id="lines"></svg>
+  <div id="chart"></div>
+</div>
+
+<script>
+// =============================================================
+// 1. Load astrolabe data
+// =============================================================
+const a = iztro.astro.bySolar("2000-8-16", 2, "男", true, "zh-CN");
+
+const order = [
+  4, 3, 2, 1,
+  5, -1, -1, 6,
+  7, -1, -1, 8,
+  9,10,11,0
+];
+
+const chart = document.getElementById("chart");
+const container = document.getElementById("container");
+
+
+// =============================================================
+// 2. Render palaces and the center block
+// =============================================================
+order.forEach(idx => {
+  const div = document.createElement("div");
+
+  // ---- Center block ----
+  if (idx === -1) {
+    div.id = "center-info";
+    div.innerHTML = `
+      <b>命盘资料</b><br>
+      性别：${a.gender}<br>
+      阳历：${a.solarDate}<br>
+      农历：${a.lunarDate}<br>
+      时辰：${a.time}（${a.timeRange}）<br>
+      星座：${a.sign}<br>
+      生肖：${a.zodiac}<br>
+      五行局：${a.fiveElementsClass}<br>
+      命主：${a.soul}<br>
+      身主：${a.body}
+    `;
+    chart.appendChild(div);
+    return;
+  }
+
+  // ---- Palace block ----
+  const p = a.palaces[idx];
+  div.className = "palace";
+  div.id = "palace-" + idx;
+
+  div.innerHTML = `
+    <div class="palace-title">${p.name}（${p.heavenlyStem}${p.earthlyBranch}）</div>
+    <div class="major">${p.majorStars.map(s => s.name).join("、")}</div>
+    <div class="minor">${p.minorStars.map(s => s.name).join("、")}</div>
+    <div class="adj">${p.adjectiveStars.map(s => s.name).join("、")}</div>
+
+    <div class="meta">
+      长生：${p.changsheng12}<br>
+      博士：${p.boshi12}<br>
+      将前：${p.jiangqian12}<br>
+      岁前：${p.suiqian12}<br>
+      大限：${p.decadal.range[0]} — ${p.decadal.range[1]} 岁
+    </div>
+  `;
+
+  chart.appendChild(div);
+});
+
+
+// =============================================================
+// 3. Rectangle and center helpers
+// =============================================================
+function rectInfo(el) {
+  const r = el.getBoundingClientRect();
+  const c = container.getBoundingClientRect();
+  return {
+    left: r.left - c.left,
+    top: r.top - c.top,
+    width: r.width,
+    height: r.height,
+    cx: r.left - c.left + r.width / 2,
+    cy: r.top - c.top + r.height / 2
+  };
+}
+
+const centerRect = rectInfo(document.getElementById("center-info"));
+
+
+// =============================================================
+// 4. Compute intersection between segment and a block's border
+// =============================================================
+function intersectRect(rect, x1, y1, x2, y2) {
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+
+  // Left border
+  if (dx !== 0) {
+    const t = (rect.left - x1) / dx;
+    if (t > 0 && t < 1) {
+      const y = y1 + t * dy;
+      if (y >= rect.top && y <= rect.top + rect.height) return { x: rect.left, y };
+    }
+  }
+
+  // Right border
+  if (dx !== 0) {
+    const t = ((rect.left + rect.width) - x1) / dx;
+    if (t > 0 && t < 1) {
+      const y = y1 + t * dy;
+      if (y >= rect.top && y <= rect.top + rect.height) return { x: rect.left + rect.width, y };
+    }
+  }
+
+  // Top border
+  if (dy !== 0) {
+    const t = (rect.top - y1) / dy;
+    if (t > 0 && t < 1) {
+      const x = x1 + t * dx;
+      if (x >= rect.left && x <= rect.left + rect.width) return { x, y: rect.top };
+    }
+  }
+
+  // Bottom border
+  if (dy !== 0) {
+    const t = ((rect.top + rect.height) - y1) / dy;
+    if (t > 0 && t < 1) {
+      const x = x1 + t * dx;
+      if (x >= rect.left && x <= rect.left + rect.width) return { x, y: rect.top + rect.height };
+    }
+  }
+
+  return null;
+}
+
+
+// =============================================================
+// 5. Prevent line from crossing the center block
+// =============================================================
+function lineCrossCenter(p1, p2) {
+  const cx1 = centerRect.left;
+  const cy1 = centerRect.top;
+  const cx2 = centerRect.left + centerRect.width;
+  const cy2 = centerRect.top + centerRect.height;
+
+  return (
+    Math.max(p1.x, p2.x) >= cx1 &&
+    Math.min(p1.x, p2.x) <= cx2 &&
+    Math.max(p1.y, p2.y) >= cy1 &&
+    Math.min(p1.y, p2.y) <= cy2
+  );
+}
+
+
+// =============================================================
+// 6. Draw edge-to-edge line
+// =============================================================
+function drawLine(aIdx, bIdx, color="rgba(255,0,0,0.75)") {
+  const svg = document.getElementById("lines");
+
+  const A = rectInfo(document.getElementById("palace-" + aIdx));
+  const B = rectInfo(document.getElementById("palace-" + bIdx));
+
+  const pA = intersectRect(A, A.cx, A.cy, B.cx, B.cy);
+  const pB = intersectRect(B, B.cx, B.cy, A.cx, A.cy);
+
+  if (!pA || !pB) return;
+  if (lineCrossCenter(pA, pB)) return;  // skip if crossing center block
+
+  const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+  line.setAttribute("x1", pA.x);
+  line.setAttribute("y1", pA.y);
+  line.setAttribute("x2", pB.x);
+  line.setAttribute("y2", pB.y);
+  line.setAttribute("stroke", color);
+  line.setAttribute("stroke-width", "2");
+  line.classList.add("dynamic-line");
+
+  svg.appendChild(line);
+}
+
+function clearLines() {
+  document.querySelectorAll(".dynamic-line").forEach(el => el.remove());
+}
+
+
+// =============================================================
+// 7. Relation logic (三方四正)
+// =============================================================
+function relatedPalaces(i) {
+  return [
+    (i + 4) % 12,
+    (i + 8) % 12,
+    (i + 6) % 12
+  ];
+}
+
+
+// =============================================================
+// 8. Highlight behavior with edge-based lines
+// =============================================================
+function highlight(idx) {
+  clearLines();
+
+  const p = document.getElementById("palace-" + idx);
+  p.style.background = "#fff5cc";
+  p.style.borderColor = "#d49400";
+
+  const rel = relatedPalaces(idx);
+
+  rel.forEach(r => {
+    const block = document.getElementById("palace-" + r);
+    if (block) {
+      block.style.background = "#fffae6";
+      block.style.borderColor = "#e6a800";
+    }
+    drawLine(idx, r);
+  });
+}
+
+function unhighlight() {
+  clearLines();
+  document.querySelectorAll(".palace").forEach(p => {
+    p.style.background = "white";
+    p.style.borderColor = "#aaa";
+  });
+}
+
+
+// attach hover events
+document.querySelectorAll(".palace").forEach(p => {
+  const idx = parseInt(p.id.replace("palace-", ""));
+  p.addEventListener("mouseenter", () => highlight(idx));
+  p.addEventListener("mouseleave", () => unhighlight());
+});
+</script>
+
+
+</body>
+</html>
